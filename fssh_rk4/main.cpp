@@ -11,7 +11,7 @@
 
 #define DELTA 1.0
 #define TOTAL_TIME 100.0
-#define ITER 100
+#define ITER 20
 
 using namespace std;
 using namespace Eigen;
@@ -221,7 +221,7 @@ public:
 		out_put op = out_put::out_put(state, pos);
 		return op;
 	}
-	double surface_hopping(elec_state es,double acc_1, double acc_2,double acc_3,double acc_4)
+	double surface_hopping(elec_state es,double acc_1, double acc_2,double acc_3,double acc_4)//a little hesitate here about the rk4
 	{
 		int nstates = 2;
 
@@ -428,11 +428,10 @@ int main()
 	record single_k;
 	ofstream file;
 	file.open("fssh.log");
-	double start;
-	double end;
-	cin >> start;
-	cin >> end;
-	for (k = start; k < end; k += 1.5)
+	double start = 1.0;
+	double end = 40.0;
+	double increment = 5.0;
+	for (k = start; k < end; k += increment)
 	{
 		single_k.clear();
 		for (int i = 0; i < ITER; i++)
@@ -459,7 +458,7 @@ int main()
 		int high_reflection = (*it).high_reflect;
 		file.setf(ios::right);
 		file << k << ' ' << final_state << ' ' << low_transmitt << ' ' << low_reflect << ' ' << high_transmitt << ' ' << high_reflection << endl;
-		k += 1.5;
+		k += increment;
 	}
 
 	file.close();
