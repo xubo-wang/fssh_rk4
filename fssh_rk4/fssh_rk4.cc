@@ -6,8 +6,9 @@
 #include <cmath>
 #include <random>
 #include <complex>
-#include <Eigen/Core>
-#include <Eigen/Dense>
+//#pragma GCC system_headers
+#include <D:/eigen/Eigen/Core>
+#include <D:/eigen/Eigen/Dense>
 
 #define DELTA 1.0
 #define TOTAL_TIME 100.0
@@ -182,41 +183,40 @@ class Traj
 	{
 		ElectronicState last_elec = ComputeElectronics();
 		ElectronicState electronics = ComputeElectronics();
-        //Initialize MD step.
-		double ini_acc = electronics.ComputeForce(state) / mass;
-		double velo = velocity;
-		double dv = ini_acc * dt;
-		double acc;
-
-		double potential = electronics.ComputePotential(state);
+		
 		double prob = 0.0;
 		int step = 0;
 		while (pos <= 5.0 && pos >= -5.0)
 		{
 			last_elec = electronics;
+			ElectronicState es_1 = ComputeElectronics(pos);
+			double a1 = electronics.ComputeForce(state) / mass;
+			double v1 = dt * a1;
+
+			double x1 = (v1 + velocity) * dt / 2 + pos;
+			ElectronicState es_2 = ComputeElectronics(x1);
+			double a2 = es_2.ComputeForce(state) / mass;
+			double v2 = dt * a2;
+			
+			double x2 = (v2 + velocity) * dt / 2 + pos;
+			ElectronicState es_3 = ComputeElectronics(x2);
+			double a3 = es_3.ComputeForce(state) / mass;
+			double v3 = dt * a3;
+
+			double x3 = (v3 + velocity) * dt + pos;
+			ElectronicState es_4 = ComputeElectronics(x3);
+			double a4 = es_4.ComputeForce(state) / mass;
+			double v4 = dt * a4;
+
+			velocity += 1/3 * v1 + 1/6 * v2 + 1/6 * v3 + 1/3 * v4;
+			pos += velocity * dt;
 			electronics = ComputeElectronics();
-			double acc_1 = electronics.ComputeForce(state) / mass;
-			double pos_1 = (acc_1 * dt + velocity) * dt;
-
-			ElectronicState es_2 = ComputeElectronics(pos + pos_1 / 2);
-			double acc_2 = es_2.ComputeForce(state) / mass;
-			double pos_2 = (acc_2*dt + velocity)*dt;
-
-			ElectronicState es_3 = ComputeElectronics(pos + pos_2 / 2);
-			double acc_3 = es_3.ComputeForce(state) / mass;
-			double pos_3 = (acc_3*dt + velocity)*dt;
-
-			ElectronicState es_4 = ComputeElectronics(pos + pos_3);
-			double acc_4 = es_4.ComputeForce(state) / mass;
-
-			velocity += 1/3 * acc_1 * dt + 1/6 * acc_2 * dt + 1/6 * acc_3 * dt + 1/3 * acc_4 * dt;
-			pos += velocity*dt;
 
 			Propagate(electronics);
-			prob = SurfaceHopping(electronics, acc_1, acc_2, acc_3, acc_4);
+ 			prob = SurfaceHopping(electronics);
 			t += dt;
 			energy = TotalEnergy(electronics);
-			potential = electronics.ComputePotential(state);
+			double potential = electronics.ComputePotential(state);
 		}
 		Output output(state, pos);
 		return output;
@@ -250,12 +250,11 @@ class Traj
 				rho_prime(col, row) = rho_prime(col, row) * i;
 			}
 		}
-
 		rho = rho + rho_prime * dt;
 	}
 	void Propagate(ElectronicState es)
 	{
-		double velo = 0.5 * (last_velo + velocity);//Euler
+		double velo = 0.5 * (last_velo + velocity);//verlet
 		Matrix2d D = es.ComputeNACMatrix(velo);
 
 		int nstates = 2;
@@ -285,9 +284,7 @@ class Traj
 
 		rho = rho + rho_prime * dt;
 	}
-	double SurfaceHopping(ElectronicState es,double acc_1, double acc_2,
-                          double acc_3,double acc_4)
-    //a little hesitate here about the rk4
+	double SurfaceHopping(ElectronicState es)
 	{
 		int nstates = 2;
 
@@ -304,6 +301,7 @@ class Traj
 			else
 			{
 				double bij = -2.0 * rho(state, target).real() * W(target, state);
+				if (bij < 0) bij = 0;
 				probs.push_back(dt*bij / rho(state, state).real());
 			}
 		}
@@ -391,10 +389,3 @@ class Traj
 	Matrix2cd rho;
 	double energy;
 };
-double GenerateVelocity(double k)
-{
-	std::mt19937 gen(5519);
-	std::normal_distribution<double> nd(k, k / 5 / sqrt(2));
-
-	return nd(gen) / 2000;
-}
